@@ -475,7 +475,7 @@ class XDotAttrParser:
 
     def lookup_color(self, c):
         try:
-            color = gtk.gdk.color_parse(c)
+            color = Gtk.gdk.color_parse(c)
         except ValueError:
             pass
         else:

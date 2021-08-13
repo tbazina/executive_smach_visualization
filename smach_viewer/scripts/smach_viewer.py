@@ -30,6 +30,7 @@
 #
 # Author: Jonathan Bohren 
 
+from importlib.util import spec_from_file_location
 import rospy
 import rospkg
 
@@ -41,15 +42,18 @@ import threading
 import pickle
 import pprint
 import copy
-import StringIO
+# try:
+#     import StringIO 
+# except ImportError:
+#     from io import StringIO 
 import colorsys
 import time
 
-import wxversion
-if wxversion.checkInstalled("2.8"):
-    wxversion.select("2.8")
-else:
-    print("wxversion 2.8 is not installed, installed versions are {}".format(wxversion.getInstalled()))
+# import wxversion
+# if wxversion.checkInstalled("2.8"):
+#     wxversion.select("2.8")
+# else:
+#     print("wxversion 2.8 is not installed, installed versions are {}".format(wxversion.getInstalled()))
 import wx
 import wx.richtext
 
@@ -60,16 +64,41 @@ import textwrap
 ## need to import currnt package, but not to load this file
 # http://stackoverflow.com/questions/6031584/importing-from-builtin-library-when-module-with-same-name-exists
 def import_non_local(name, custom_name=None):
-    import imp, sys
+    """[summary]
+
+    Args:
+        name (str): module name
+        custom_name (str, optional): module name. Defaults to None.
+
+    Returns:
+        [type]: imported module
+    """
+    import importlib.util
+    import sys
 
     custom_name = custom_name or name
+    # Get smach_viewer package location
+    rospack = rospkg.RosPack()
+    smach_viewer_path = os.path.join(
+        rospack.get_path(custom_name), 'src', custom_name 
+        )
 
-    path = filter(lambda x: x != os.path.dirname(os.path.abspath(__file__)), sys.path)
-    f, pathname, desc = imp.find_module(name, path)
+    # print(smach_viewer_path)
 
-    module = imp.load_module(custom_name, f, pathname, desc)
-    if f:
-        f.close()
+    # path = list(filter(lambda x: x != os.path.dirname(os.path.abspath(__file__)), sys.path))
+
+    sys.path.insert(1, os.path.join(smach_viewer_path, 'xdot'))
+    os.path.dirname(os.path.abspath(__file__))
+    spec = importlib.util.spec_from_file_location(
+        name=custom_name, location=os.path.join(smach_viewer_path, '__init__.py'),
+        # submodule_search_locations=[
+        #     smach_viewer_path,
+        #     os.path.join(smach_viewer_path, 'xdot')
+        #     ]
+        )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[custom_name] = module
+    spec.loader.exec_module(module)
 
     return module
 
@@ -82,12 +111,12 @@ import smach_ros
 ### Helper Functions
 def graph_attr_string(attrs):
     """Generate an xdot graph attribute string."""
-    attrs_strs = ['"'+str(k)+'"="'+str(v)+'"' for k,v in attrs.iteritems()]
+    attrs_strs = ['"'+str(k)+'"="'+str(v)+'"' for k,v in attrs.items()]
     return ';\n'.join(attrs_strs)+';\n'
 
 def attr_string(attrs):
     """Generate an xdot node attribute string."""
-    attrs_strs = ['"'+str(k)+'"="'+str(v)+'"' for k,v in attrs.iteritems()]
+    attrs_strs = ['"'+str(k)+'"="'+str(v)+'"' for k,v in attrs.items()]
     return ' ['+(', '.join(attrs_strs))+']'
 
 def get_parent_path(path):
@@ -182,14 +211,14 @@ class ContainerNode():
         # Unpack the user data
         while not rospy.is_shutdown():
             try:
-                self._local_data._data = pickle.loads(msg.local_data)
+                self._local_data._data = pickle.loads(pickle.dumps(msg.local_data))
                 break
             except ImportError as ie:
                 # This will only happen once for each package
                 modulename = ie.args[0][16:]
                 packagename = modulename[0:modulename.find('.')]
                 roslib.load_manifest(packagename)
-                self._local_data._data = pickle.loads(msg.local_data)
+                self._local_data._data = pickle.loads(pickle.dumps(msg.local_data))
 
         # Store the info string
         self._info = msg.info
@@ -289,10 +318,10 @@ class ContainerNode():
                     dotstr += '"%s" %s;\n' % (child_path, attr_string(child_attrs))
 
             # Iterate over edges
-            internal_edges = zip(
+            internal_edges = list(zip(
                     self._internal_outcomes,
                     self._outcomes_from,
-                    self._outcomes_to)
+                    self._outcomes_to))
 
             # Add edge from container label to initial state
             internal_edges += [('','__proxy__',initial_child) for initial_child in self._initial_states]
@@ -545,9 +574,9 @@ class SmachViewerFrame(wx.Frame):
         toolbar.AddControl(toggle_auto_focus)
 
         toolbar.AddControl(wx.StaticText(toolbar,-1,"    "))
-        toolbar.AddLabelTool(wx.ID_HELP, 'Help',
+        toolbar.AddTool(wx.ID_HELP, 'Help',
                 wx.ArtProvider.GetBitmap(wx.ART_HELP,wx.ART_OTHER,(16,16)) )
-        toolbar.AddLabelTool(wx.ID_SAVE, 'Save',
+        toolbar.AddTool(wx.ID_SAVE, 'Save',
                 wx.ArtProvider.GetBitmap(wx.ART_FILE_SAVE,wx.ART_OTHER,(16,16)) )
         toolbar.Realize()
 
@@ -757,7 +786,7 @@ class SmachViewerFrame(wx.Frame):
 
                 # Generate the userdata string
                 ud_str = ''
-                for (k,v) in container._local_data._data.iteritems():
+                for (k,v) in container._local_data._data.items():
                     ud_str += str(k)+": "
                     vstr = str(v)
                     # Add a line break if this is a multiline value
@@ -902,7 +931,7 @@ class SmachViewerFrame(wx.Frame):
 
                     # Generate the rest of the graph
                     # TODO: Only re-generate dotcode for containers that have changed
-                    for path,tc in containers_to_update.iteritems():
+                    for path,tc in containers_to_update.items():
                         dotstr += tc.get_dotcode(
                                 self._selected_paths,[],
                                 0,self._max_depth,
@@ -919,7 +948,7 @@ class SmachViewerFrame(wx.Frame):
                     self._structure_changed = False
 
                 # Update the styles for the graph if there are any updates
-                for path,tc in containers_to_update.iteritems():
+                for path,tc in containers_to_update.items():
                     tc.set_styles(
                             self._selected_paths,
                             0,self._max_depth,
@@ -950,7 +979,7 @@ class SmachViewerFrame(wx.Frame):
                 self._update_cond.wait()
                 self.tree.DeleteAllItems()
                 self._tree_nodes = {}
-                for path,tc in self._top_containers.iteritems():
+                for path,tc in self._top_containers.items():
                     self.add_to_tree(path, None)
 
     def add_to_tree(self, path, parent):

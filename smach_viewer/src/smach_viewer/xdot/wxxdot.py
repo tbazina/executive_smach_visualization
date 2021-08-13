@@ -21,27 +21,26 @@
 
 from xdot import *
 
-
 __all__ = ['WxDotWindow', 'WxDotFrame']
 
 # We need to get the wx version with built-in cairo support
-import wxversion
-if wxversion.checkInstalled("2.8"):
-    wxversion.select("2.8")
-else:
-    print("wxversion 2.8 is not installed, installed versions are {}".format(wxversion.getInstalled()))
+# import wxversion
+# if wxversion.checkInstalled("2.8"):
+#     wxversion.select("2.8")
+# else:
+#     print("wxversion 2.8 is not installed, installed versions are {}".format(wxversion.getInstalled()))
 import wx
 import wx.lib.wxcairo as wxcairo
 
 # This is a crazy hack to get this to work on 64-bit systems
-if 'wxMac' in wx.PlatformInfo:
-  pass # Implement if necessary
-elif 'wxMSW' in wx.PlatformInfo:
-  pass # Implement if necessary
-elif 'wxGTK' in wx.PlatformInfo:
-  import ctypes
-  gdkLib = wx.lib.wxcairo._findGDKLib()
-  gdkLib.gdk_cairo_create.restype = ctypes.c_void_p
+# if 'wxMac' in wx.PlatformInfo:
+#   pass # Implement if necessary
+# elif 'wxMSW' in wx.PlatformInfo:
+#   pass # Implement if necessary
+# elif 'wxGTK' in wx.PlatformInfo:
+#   import ctypes
+#   gdkLib = wxcairo._findGDKLib()
+#   gdkLib.gdk_cairo_create.restype = ctypes.c_void_p
 
 class WxDragAction(object):
   def __init__(self, dot_widget):
@@ -436,7 +435,7 @@ class WxDotWindow(wx.Panel):
     self.filter = filter
 
   def set_dotcode(self, dotcode, filename='<stdin>'):
-    if isinstance(dotcode, unicode):
+    if type(dotcode) is str:
       dotcode = dotcode.encode('utf8')
     p = subprocess.Popen(
       [self.filter, '-Txdot'],
@@ -446,12 +445,12 @@ class WxDotWindow(wx.Panel):
       shell=False,
       universal_newlines=True
     )
-    xdotcode, error = p.communicate(dotcode)
+    xdotcode, error = p.communicate(str(dotcode))
     if p.returncode != 0:
       print("ERROR PARSING DOT CODE {}".format(error))
-      dialog = Gtk.MessageDialog(type=gtk.MESSAGE_ERROR,
+      dialog = Gtk.MessageDialog(type=Gtk.MessageType.ERROR,
                      message_format=error,
-                     buttons=gtk.BUTTONS_OK)
+                     buttons=Gtk.ButtonsType.OK)
       dialog.set_title('Dot Viewer')
       dialog.run()
       dialog.destroy()
@@ -470,9 +469,9 @@ class WxDotWindow(wx.Panel):
 
     except ParseError as ex:
       print("ERROR PARSING XDOT CODE")
-      dialog = gtk.MessageDialog(type=gtk.MESSAGE_ERROR,
+      dialog = Gtk.MessageDialog(type=Gtk.MESSAGE_ERROR,
                      message_format=str(ex),
-                     buttons=gtk.BUTTONS_OK)
+                     buttons=Gtk.BUTTONS_OK)
       dialog.set_title('Dot Viewer')
       dialog.run()
       dialog.destroy()
@@ -507,9 +506,9 @@ class WxDotFrame(wx.Frame):
 
     # Construct toolbar
     toolbar = wx.ToolBar(self, -1)
-    toolbar.AddLabelTool(wx.ID_OPEN, 'Open File',
+    toolbar.AddTool(wx.ID_OPEN, 'Open File',
         wx.ArtProvider.GetBitmap(wx.ART_FOLDER_OPEN,wx.ART_OTHER,(16,16)))
-    toolbar.AddLabelTool(wx.ID_HELP, 'Help',
+    toolbar.AddTool(wx.ID_HELP, 'Help',
         wx.ArtProvider.GetBitmap(wx.ART_HELP,wx.ART_OTHER,(16,16)) )
     toolbar.Realize()
 
